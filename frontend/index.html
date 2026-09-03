@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Speculative Decoding Playground</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Speculative Decoding Playground</h1>
+    <p class="sub">Draft model: Qwen2.5-0.5B-Instruct &nbsp;→&nbsp; Target model: Qwen2.5-1.5B-Instruct</p>
+  </header>
+
+  <section class="theory">
+    <h2>How this works</h2>
+    <p>
+      Normally, a language model produces exactly one token per forward pass through the
+      (expensive) target model. <strong>Speculative decoding</strong> speeds this up by having a
+      small, cheap <strong>draft model</strong> guess the next <code>K</code> tokens first. The
+      target model then checks all <code>K</code> guesses in a <em>single</em> forward pass instead
+      of one-at-a-time.
+    </p>
+    <ul>
+      <li>Every guessed token that matches what the target would have picked itself is <span class="tag accepted">accepted</span> for free.</li>
+      <li>The first guess that doesn't match is <span class="tag rejected">rejected</span>, and everything after it in that round is discarded.</li>
+      <li>The target always contributes one <span class="tag bonus">bonus token</span> of its own at the end of the round — either continuing past a full acceptance, or replacing the first rejected guess.</li>
+    </ul>
+    <p>
+      The output is <em>identical</em> to running the target model alone (both use greedy decoding
+      here) — speculative decoding changes <em>how many expensive target passes</em> it takes to get
+      there, not what gets generated. The numbers below are measured directly from a real
+      Transformers <code>assistant_model</code> generation call, not simulated.
+    </p>
+  </section>
+
+  <section class="playground">
+    <h2>Try it</h2>
+    <div id="status-banner" class="banner">Checking backend…</div>
+
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" rows="3">Explain what a hash map is and give a short example.</textarea>
+
+    <div class="controls">
+      <label for="k">Draft tokens per round (K): <span id="k-value">4</span></label>
+      <input type="range" id="k" min="1" max="10" value="4" />
+      <button id="generate-btn">Generate</button>
+    </div>
+
+    <div class="results" id="results" hidden>
+      <div class="summary">
+        <div class="stat">
+          <span class="stat-label">Baseline time</span>
+          <span class="stat-value" id="baseline-time">–</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Speculative time</span>
+          <span class="stat-value" id="spec-time">–</span>
+        </div>
+        <div class="stat highlight">
+          <span class="stat-label">Speedup</span>
+          <span class="stat-value" id="speedup">–</span>
+        </div>
+      </div>
+
+      <div class="columns">
+        <div class="column">
+          <h3>Baseline (target only)</h3>
+          <div class="meta">
+            <span><strong id="baseline-calls">–</strong> target calls</span>
+            <span><strong id="baseline-tokens">–</strong> tokens</span>
+          </div>
+          <div class="text-box" id="baseline-text"></div>
+        </div>
+
+        <div class="column">
+          <h3>Speculative (draft + target)</h3>
+          <div class="meta">
+            <span><strong id="spec-calls">–</strong> target calls</span>
+            <span><strong id="spec-tokens">–</strong> tokens</span>
+          </div>
+          <div class="rounds" id="rounds"></div>
+          <div class="text-box" id="spec-text"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
