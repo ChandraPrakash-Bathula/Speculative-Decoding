@@ -1,5 +1,5 @@
-fastapi
+fastapi==0.136.0
 uvicorn[standard]
-transformers>=4.44
-torch
-accelerate
+transformers==5.5.4
+torch==2.13.0
+accelerate==1.14.0
