@@ -602,7 +602,8 @@ export function Playground() {
       {!baseline && !busy && (
         <section className="panel empty-state">
           <p>
-            Nothing measured yet. Hit <strong>Run comparison</strong> for a single head-to-head, or{" "}
+            Nothing measured yet. Hit <strong>Run live comparison</strong> to watch a single
+            head-to-head stream in, or{" "}
             <strong>Sweep K</strong> to trace the speedup curve and compare it against theory.
           </p>
           <p className="panel-note">

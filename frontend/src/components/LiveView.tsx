@@ -45,7 +45,9 @@ export function LiveView({
           {running && <span className="live-dot" aria-label="generating" />}
         </h3>
         <span className="live-metrics">
-          {tokenCount} tok · {tokensPerSecond.toFixed(1)} tok/s
+          {tokenCount} tok ·{" "}
+          {/* slow hardware can sit well below 1 tok/s, where one decimal reads as 0.0 */}
+          {tokensPerSecond >= 1 ? tokensPerSecond.toFixed(1) : tokensPerSecond.toFixed(2)} tok/s
           {speculative && rounds.length > 0 && ` · ${rounds.length} passes`}
         </span>
       </div>

@@ -73,7 +73,7 @@ export function Home() {
           </li>
           <li>
             <strong>A <Tex>{"K"}</Tex>-sweep</strong> comparing measured speedup against the
-            closed-form prediction from the 2023 papers, evaluated at this hardware's own
+            closed-form prediction from the 2023 papers, evaluated at this hardware's own{" "}
             <Tex>{"\\hat\\alpha"}</Tex> and <Tex>{"\\hat c"}</Tex>.
           </li>
         </ul>
