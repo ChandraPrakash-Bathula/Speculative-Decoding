@@ -12,8 +12,8 @@ export function Home() {
         <p className="lede">
           A small draft model guesses several tokens ahead; a large target model verifies them all
           in a single forward pass. Accepted guesses are free tokens. This playground runs that
-          algorithm for real — Qwen2.5-0.5B drafting for Qwen2.5-1.5B through Transformers'
-          assisted-generation API — and every number it reports is read off the live generation
+          algorithm for real, with Qwen2.5-0.5B drafting for Qwen2.5-1.5B through Transformers'
+          assisted-generation API, and every number it reports is read off the live generation
           loop, never fabricated for the visualization.
         </p>
         <div className="hero-actions">
@@ -39,7 +39,7 @@ export function Home() {
           <h2>The guarantee</h2>
           <p>
             The accept/reject rule is built so the output distribution is <em>exactly</em> the
-            target model's. A weak draft costs you speed, never correctness — a claim this app
+            target model's. A weak draft costs you speed, never correctness, a claim this app
             checks empirically by diffing the speculative output against the baseline.
           </p>
         </article>
@@ -59,7 +59,7 @@ export function Home() {
         <ul className="feature-list">
           <li>
             <strong>Per-round accept/reject counts</strong> hooked directly out of the
-            <code>AssistedCandidateGenerator</code> — the exact object Transformers uses to run
+            <code>AssistedCandidateGenerator</code>, the exact object Transformers uses to run
             speculation.
           </li>
           <li>
@@ -68,7 +68,7 @@ export function Home() {
             constant.
           </li>
           <li>
-            <strong>Per-position acceptance decay</strong> — a direct empirical test of the i.i.d.
+            <strong>Per-position acceptance decay</strong>, a direct empirical test of the i.i.d.
             acceptance assumption the classical speedup formula rests on.
           </li>
           <li>

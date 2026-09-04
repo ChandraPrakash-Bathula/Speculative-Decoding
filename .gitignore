@@ -6,3 +6,5 @@ __pycache__/
 # frontend build artifacts - dist is rebuilt inside the Docker image
 node_modules/
 frontend/dist/
+
+paper.tex

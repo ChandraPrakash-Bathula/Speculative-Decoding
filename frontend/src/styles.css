@@ -639,6 +639,140 @@ input[type="range"] {
   }
 }
 
+/* ============================================================ Live view */
+
+.live-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+@media (max-width: 780px) {
+  .live-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.live-pane {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  background: var(--page);
+}
+
+.live-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.live-head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-good);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.live-metrics {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.live-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  min-height: 8rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.live-placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.live-chunk {
+  animation: fadein 0.25s ease-out;
+}
+
+/* speculative bursts get a faint boundary so you can see where each target
+   pass committed, without tinting the text itself unreadably */
+.live-chunk-spec {
+  border-bottom: 2px solid color-mix(in srgb, var(--status-good) 45%, transparent);
+  border-radius: 2px;
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+    background: color-mix(in srgb, var(--status-good) 30%, transparent);
+  }
+  to {
+    opacity: 1;
+    background: transparent;
+  }
+}
+
+.live-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  background: var(--series-1);
+  vertical-align: text-bottom;
+  animation: pulse 0.9s steps(2) infinite;
+}
+
+.live-ticker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.ticker-round {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+
+.ticker-round i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
 /* ============================================================ Charts */
 
 .chart {

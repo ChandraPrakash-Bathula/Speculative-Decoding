@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  runBaseline,
   runSpeculative,
+  streamGenerate,
   perPositionAcceptance,
   acceptedLengthDistribution,
   theoreticalSpeedup,
   type BaselineResult,
   type SpeculativeResult,
+  type Round,
 } from "../api";
 import { SERIES } from "../theme";
 import { Tex } from "../components/Tex";
 import { StatTile, StatRow } from "../components/StatTile";
 import { RoundStrip, RoundLegend } from "../components/RoundStrip";
+import { LiveView, type LiveChunk } from "../components/LiveView";
 import { ChartFrame } from "../components/charts/ChartFrame";
 import { LineChart } from "../components/charts/LineChart";
 import { BarChart } from "../components/charts/BarChart";
@@ -37,47 +39,111 @@ export function Playground() {
   const [sweep, setSweep] = useState<Record<number, SpeculativeResult>>({});
   const [busy, setBusy] = useState<null | string>(null);
   const [error, setError] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(0);
   const [showTable, setShowTable] = useState(false);
 
-  const animRef = useRef<number | undefined>(undefined);
+  // live-stream state, updated as events arrive from the server
+  const [liveStage, setLiveStage] = useState<null | "baseline" | "speculative">(null);
+  const [baseChunks, setBaseChunks] = useState<LiveChunk[]>([]);
+  const [specChunks, setSpecChunks] = useState<LiveChunk[]>([]);
+  const [liveRounds, setLiveRounds] = useState<Round[]>([]);
+  const [baseElapsed, setBaseElapsed] = useState(0);
+  const [specElapsed, setSpecElapsed] = useState(0);
 
-  // Reveal rounds one at a time, pacing the animation off the real round count.
-  useEffect(() => {
-    if (!spec) return;
-    setRevealed(0);
-    const total = spec.rounds.length;
-    const step = () => {
-      setRevealed((r) => {
-        if (r >= total) return r;
-        animRef.current = window.setTimeout(step, 90);
-        return r + 1;
-      });
-    };
-    animRef.current = window.setTimeout(step, 90);
-    return () => {
-      if (animRef.current) window.clearTimeout(animRef.current);
-    };
-  }, [spec]);
+  const abortRef = useRef<AbortController | null>(null);
 
   const outputsMatch = baseline && spec ? baseline.text === spec.text : null;
 
+  function resetLive() {
+    setBaseChunks([]);
+    setSpecChunks([]);
+    setLiveRounds([]);
+    setBaseElapsed(0);
+    setSpecElapsed(0);
+  }
+
+  /**
+   * Streams one generation, pushing text and rounds into state as they land.
+   *
+   * The server emits a `tokens` event when a chunk is committed and a `round`
+   * event with that round's accept/reject counts immediately after, so the
+   * pending chunk is annotated once its round arrives.
+   */
+  async function streamOne(
+    mode: "baseline" | "speculative",
+    kValue: number,
+    setChunks: React.Dispatch<React.SetStateAction<LiveChunk[]>>,
+    setElapsed: (ms: number) => void,
+  ) {
+    const started = performance.now();
+    const ticker = window.setInterval(() => setElapsed(performance.now() - started), 100);
+    let result: SpeculativeResult | null = null;
+
+    try {
+      await streamGenerate(
+        { prompt, K: kValue, mode, max_new_tokens: maxNewTokens },
+        (event) => {
+          if (event.type === "tokens") {
+            setChunks((prev) => [...prev, { text: event.text, accepted: 0, rejected: 0 }]);
+          } else if (event.type === "round") {
+            setLiveRounds((prev) => [...prev, { proposed: event.proposed, accepted: event.accepted }]);
+            // annotate the chunk this round produced
+            setChunks((prev) => {
+              if (prev.length === 0) return prev;
+              const next = [...prev];
+              const last = next[next.length - 1];
+              next[next.length - 1] = {
+                ...last,
+                accepted: event.accepted,
+                rejected: Math.max(event.proposed - event.accepted, 0),
+              };
+              return next;
+            });
+          } else if (event.type === "error") {
+            setError(event.message);
+          } else if (event.type === "done") {
+            result = event;
+            setElapsed(event.total_time_ms);
+          }
+        },
+        abortRef.current?.signal,
+      );
+    } finally {
+      window.clearInterval(ticker);
+    }
+    return result;
+  }
+
   async function runComparison() {
-    setBusy("Running baseline…");
     setError(null);
     setBaseline(null);
     setSpec(null);
+    resetLive();
+    abortRef.current = new AbortController();
+
     try {
-      const b = await runBaseline(prompt, maxNewTokens);
-      setBaseline(b);
-      setBusy(`Running speculative (K=${k})…`);
-      const s = await runSpeculative(prompt, k, maxNewTokens);
-      setSpec(s);
+      setBusy("streaming baseline");
+      setLiveStage("baseline");
+      const b = await streamOne("baseline", 1, setBaseChunks, setBaseElapsed);
+      if (b) setBaseline(b as unknown as BaselineResult);
+
+      setBusy(`streaming speculative, K=${k}`);
+      setLiveStage("speculative");
+      const s = await streamOne("speculative", k, setSpecChunks, setSpecElapsed);
+      if (s) setSpec(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if ((e as Error).name !== "AbortError") {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setBusy(null);
+      setLiveStage(null);
     }
+  }
+
+  function stopRun() {
+    abortRef.current?.abort();
+    setBusy(null);
+    setLiveStage(null);
   }
 
   async function runSweep() {
@@ -86,14 +152,21 @@ export function Playground() {
     try {
       let b = baseline;
       if (!b) {
-        setBusy("Running baseline…");
-        b = await runBaseline(prompt, maxNewTokens);
-        setBaseline(b);
+        setBusy("running baseline");
+        resetLive();
+        abortRef.current = new AbortController();
+        setLiveStage("baseline");
+        const streamed = await streamOne("baseline", 1, setBaseChunks, setBaseElapsed);
+        if (streamed) {
+          b = streamed as unknown as BaselineResult;
+          setBaseline(b);
+        }
+        setLiveStage(null);
       }
       // Sequential, one request per K: keeps each HTTP call short (no proxy
       // timeout on hosted Spaces) and lets points appear as they land.
       for (const kv of SWEEP_K) {
-        setBusy(`Sweeping K=${kv}…`);
+        setBusy(`sweeping K=${kv}`);
         const s = await runSpeculative(prompt, kv, maxNewTokens);
         setSweep((prev) => ({ ...prev, [kv]: s }));
         if (kv === k) setSpec(s);
@@ -102,6 +175,7 @@ export function Playground() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
+      setLiveStage(null);
     }
   }
 
@@ -153,8 +227,8 @@ export function Playground() {
     <div className="page">
       <h1>Playground</h1>
       <p className="lede">
-        Runs the same prompt twice — once through the target model alone, once with the draft model
-        speculating — and reports what actually happened inside the generation loop.
+        Runs the same prompt twice, once through the target model alone and once with the draft model
+        speculating, then reports what actually happened inside the generation loop.
       </p>
 
       {/* ---------------- controls ---------------- */}
@@ -211,16 +285,56 @@ export function Playground() {
 
         <div className="button-row">
           <button className="btn btn-primary" onClick={runComparison} disabled={busy !== null}>
-            Run comparison
+            Run live comparison
           </button>
           <button className="btn btn-ghost" onClick={runSweep} disabled={busy !== null}>
             Sweep K = {SWEEP_K.join(", ")}
           </button>
-          {busy && <span className="busy">{busy}</span>}
+          {busy && (
+            <>
+              <span className="busy">{busy}</span>
+              <button className="btn btn-ghost btn-small" onClick={stopRun}>
+                Stop
+              </button>
+            </>
+          )}
         </div>
 
         {error && <p className="error-banner">{error}</p>}
       </section>
+
+      {/* ---------------- live generation ---------------- */}
+      {(baseChunks.length > 0 || specChunks.length > 0 || busy) && (
+        <section className="panel">
+          <h2>Live generation</h2>
+          <p className="panel-note">
+            Streamed over server-sent events as the model runs. The baseline dribbles out one token
+            per forward pass; the speculative pane lands whole bursts at once, because each target
+            pass commits every draft token it accepted plus one of its own.
+          </p>
+          <div className="live-grid">
+            <LiveView
+              title="Baseline"
+              chunks={baseChunks}
+              rounds={[]}
+              running={liveStage === "baseline"}
+              speculative={false}
+              tokenCount={baseChunks.length}
+              elapsedMs={baseElapsed}
+            />
+            <LiveView
+              title={`Speculative (K=${k})`}
+              chunks={specChunks}
+              rounds={liveRounds}
+              running={liveStage === "speculative"}
+              speculative
+              tokenCount={liveRounds.reduce((n, r) => n + r.accepted + 1, 0)}
+              elapsedMs={specElapsed}
+            />
+          </div>
+          <RoundLegend />
+        </section>
+      )}
 
       {/* ---------------- headline numbers ---------------- */}
       {baseline && spec && (
@@ -254,7 +368,7 @@ export function Playground() {
             {outputsMatch ? (
               <>
                 <strong>Outputs identical.</strong> The speculative run produced exactly the same
-                text as the baseline, character for character — the exactness property, verified on
+                text as the baseline, character for character. That is the exactness property, verified on
                 this run rather than assumed.
               </>
             ) : (
@@ -288,9 +402,9 @@ export function Playground() {
             <code> AssistedCandidateGenerator</code>, not reconstructed.
           </p>
           <RoundLegend />
-          <RoundStrip rounds={spec.rounds} revealed={revealed} />
+          <RoundStrip rounds={spec.rounds} revealed={spec.rounds.length} />
           <p className="panel-note">
-            {spec.rounds.length} rounds produced {spec.tokens_generated} tokens — an average of{" "}
+            {spec.rounds.length} rounds produced {spec.tokens_generated} tokens, an average of{" "}
             <strong>{formatNumber(spec.tokens_generated / spec.rounds.length)}</strong> tokens per
             target forward pass, versus exactly 1.00 for the baseline.
           </p>
@@ -314,7 +428,7 @@ export function Playground() {
             footnote={
               <>
                 Denominators shrink with position (a round that dies at position 1 never tests
-                position 2), so later bars rest on fewer observations — hover for the counts.
+                position 2), so later bars rest on fewer observations. Hover for the counts.
               </>
             }
           >
@@ -407,7 +521,7 @@ export function Playground() {
                   </Tex>{" "}
                   evaluated at this machine's mean measured{" "}
                   <Tex>{`\\hat\\alpha = ${sweepSeries.alpha.toFixed(2)}`}</Tex> and{" "}
-                  <Tex>{`\\hat c = ${sweepSeries.c.toFixed(3)}`}</Tex> — no fitted parameters.
+                  <Tex>{`\\hat c = ${sweepSeries.c.toFixed(3)}`}</Tex>, with no fitted parameters.
                 </>
               ) : (
                 "Measured speedup at each speculation length."

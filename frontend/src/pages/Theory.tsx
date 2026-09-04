@@ -19,7 +19,7 @@ export function Theory() {
           memory to compute a single token. At batch size 1 this is{" "}
           <strong>memory-bandwidth bound, not compute bound</strong>: the GPU's arithmetic units sit
           mostly idle waiting on weights. That idle capacity is exactly what speculative decoding
-          spends — verifying <Tex>{"K"}</Tex> candidate tokens in one pass costs barely more wall
+          spends: verifying <Tex>{"K"}</Tex> candidate tokens in one pass costs barely more wall
           clock than verifying one, because the weights only have to be read once either way.
         </p>
       </section>
@@ -61,7 +61,7 @@ export function Theory() {
           </li>
         </ol>
         <p className="callout">
-          Either way, <strong>a round always emits at least one token</strong> — so the loop cannot
+          Either way, <strong>a round always emits at least one token</strong>, so the loop cannot
           stall, no matter how bad the draft model is.
         </p>
       </section>
@@ -81,14 +81,14 @@ export function Theory() {
         <p>
           which holds in both cases (<Tex>{"q(x) \\ge p(x)"}</Tex> and{" "}
           <Tex>{"q(x) < p(x)"}</Tex>). So speculative sampling is <strong>exact</strong>, not an
-          approximation — the draft model influences throughput only. This is the result of
+          approximation. The draft model influences throughput only. This is the result of
           Leviathan et al. (2023) and, independently, Chen et al. (2023).
         </p>
         <p>
           This playground runs both models greedily (<Tex>{"\\arg\\max"}</Tex>), the deterministic
           special case: acceptance reduces to "did the draft's argmax match the target's argmax,"
           and a rejection is repaired with the target's own argmax. That is why the playground's
-          speculative and baseline outputs come out <em>character-for-character identical</em> — a
+          speculative and baseline outputs come out <em>character-for-character identical</em>, a
           property it verifies on every run rather than asserting.
         </p>
       </section>
@@ -114,7 +114,7 @@ export function Theory() {
         </Tex>
         <p>
           The numerator saturates as <Tex>{"\\gamma"}</Tex> grows (you cannot accept more than the
-          draft is right about) while the denominator keeps growing linearly — which is why speedup
+          draft is right about) while the denominator keeps growing linearly, which is why speedup
           versus <Tex>{"K"}</Tex> rises, peaks, and then declines. The optimum{" "}
           <Tex>{"\\gamma^\\star"}</Tex> moves right as <Tex>{"\\alpha"}</Tex> rises or{" "}
           <Tex>{"c"}</Tex> falls.
@@ -123,7 +123,7 @@ export function Theory() {
           <strong>The assumption worth doubting:</strong> acceptance is <em>not</em> i.i.d. in
           practice. The further into a speculated block you go, the more the draft is conditioning
           on its own guesses, so acceptance tends to decay with position. The playground plots this
-          decay directly from measured rounds — see{" "}
+          decay directly from measured rounds. See{" "}
           <Link to="/playground">per-position acceptance</Link>.
         </p>
       </section>
@@ -132,7 +132,7 @@ export function Theory() {
         <h2>5. What changed after 2023</h2>
         <p>
           The original formulation needs a <em>separate, independently trained</em> draft model that
-          shares the target's tokenizer — a real deployment burden. Most subsequent work attacks
+          shares the target's tokenizer, a real deployment burden. Most subsequent work attacks
           either <Tex>{"\\alpha"}</Tex> (accept more) or <Tex>{"c"}</Tex> (draft cheaper), often
           by eliminating the second model entirely.
         </p>
@@ -163,7 +163,7 @@ export function Theory() {
           <dt>Self-speculative decoding (Zhang et al., 2023)</dt>
           <dd>
             The target model drafts for itself by skipping a subset of its own layers, so there is
-            no second checkpoint to load, serve, or keep aligned — at the cost of a draft whose
+            no second checkpoint to load, serve, or keep aligned, at the cost of a draft whose
             quality you cannot tune independently.
           </dd>
 
@@ -178,13 +178,13 @@ export function Theory() {
           <dd>
             Continuously fine-tunes the draft on the live query distribution, so{" "}
             <Tex>{"\\alpha"}</Tex> climbs as the draft specialises to the traffic actually being
-            served — turning the acceptance rate into something you operate rather than inherit.
+            served, turning the acceptance rate into something you operate rather than inherit.
           </dd>
         </dl>
         <p>
           This playground deliberately implements the plain 2023 algorithm with an off-the-shelf
           draft model, because it is the variant Transformers exposes through{" "}
-          <code>assistant_model</code> — which keeps every number on the playground a direct
+          <code>assistant_model</code>, which keeps every number on the playground a direct
           measurement of a stock library path rather than of a bespoke reimplementation.
         </p>
       </section>
@@ -201,7 +201,7 @@ export function Theory() {
           <li>
             <strong>Low acceptance.</strong> If <Tex>{"\\alpha"}</Tex> is small, nearly every round
             collapses to one token while still paying <Tex>{"\\gamma c"}</Tex> of draft cost, and
-            the formula above drops below 1 — a real slowdown.
+            the formula above drops below 1, a real slowdown.
           </li>
           <li>
             <strong>Mismatched vocabularies.</strong> The vanilla algorithm requires the draft and

@@ -74,6 +74,60 @@ export function runSpeculative(prompt: string, K: number, maxNewTokens: number) 
   });
 }
 
+/* ---------- live streaming ---------- */
+
+export type StreamEvent =
+  | { type: "start"; mode: string; K: number; max_new_tokens: number }
+  | { type: "tokens"; text: string; count: number }
+  | { type: "round"; proposed: number; accepted: number }
+  | { type: "error"; message: string }
+  | ({ type: "done" } & SpeculativeResult);
+
+/**
+ * Streams a generation over server-sent events.
+ *
+ * Uses fetch + ReadableStream rather than EventSource because the request is a
+ * POST with a JSON body, which EventSource cannot send.
+ */
+export async function streamGenerate(
+  body: { prompt: string; K: number; mode: "baseline" | "speculative"; max_new_tokens: number },
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch("/generate/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`/generate/stream failed: ${res.status} ${await res.text()}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by a blank line
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+    for (const frame of frames) {
+      const line = frame.split("\n").find((l) => l.startsWith("data: "));
+      if (!line) continue;
+      try {
+        onEvent(JSON.parse(line.slice(6)) as StreamEvent);
+      } catch {
+        // a partial or malformed frame is skipped rather than killing the stream
+      }
+    }
+  }
+}
+
 /* ---------- derived metrics computed from measured rounds ---------- */
 
 /**
