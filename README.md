@@ -1,13 +1,3 @@
----
-title: Speculative Decoding Playground
-emoji: ⚡
-colorFrom: blue
-colorTo: purple
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # Speculative Decoding Playground
 
 Real (not simulated) speculative decoding demo: a FastAPI backend runs
