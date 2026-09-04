@@ -2,3 +2,7 @@
 __pycache__/
 *.pyc
 .cache/
+
+# frontend build artifacts - dist is rebuilt inside the Docker image
+node_modules/
+frontend/dist/

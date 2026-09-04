@@ -24,6 +24,7 @@ from typing import Literal
 import torch
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -309,5 +310,24 @@ def generate(req: GenerateRequest):
         return run_speculative(req.prompt, req.K, req.max_new_tokens)
 
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+# The frontend is a Vite/React SPA built to frontend/dist. Hashed assets are
+# served straight from /assets; every other unmatched GET falls through to
+# index.html so client-side routes (/theory, /playground) survive a hard reload.
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        candidate = (FRONTEND_DIST / full_path).resolve()
+        # only serve real files that stay inside dist; anything else is a route
+        if full_path and candidate.is_file() and candidate.is_relative_to(FRONTEND_DIST):
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
+else:  # pragma: no cover - dev convenience when the frontend hasn't been built
+    @app.get("/")
+    def missing_build():
+        return {
+            "detail": "frontend/dist not found - run `npm install && npm run build` in frontend/",
+        }

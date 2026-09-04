@@ -3,3 +3,8 @@ __pycache__/
 .git/
 .cache/
 *.log
+
+# the Dockerfile's node stage produces its own
+node_modules/
+frontend/node_modules/
+frontend/dist/
